@@ -1,0 +1,337 @@
+{% load my_custom_filters %}
+{% load static %}
+{% load custom_tags %}
+
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <title>Home</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="{% static 'universal.css' %}">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css"
+  integrity="sha512-xodZBNTC5n17Xt2atTPuE1HxjVMSvLVW9ocqUKLsCC5CXdbqCmblAshOMAS6/keqq/sMZMZ19scR4PsZChSR7A=="
+  crossorigin=""/>
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"
+  integrity="sha512-XQoYMqMTK8LvdxXYG3nZ448hOEQiglfqkJs1NOQV44cWnUrBc8PkAOcXy20w0vlaXaVUearIOBhiXZ5V3ynxwA=="
+  crossorigin=""></script>
+  
+  <!-- Nécessaire à la sélection -->
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+
+   <!-- Pour avoir des marqueurs rouges -->
+   <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/pointhi/leaflet-color-markers/dist/leaflet-color-markers.css" />    
+   <script src="https://cdn.jsdelivr.net/gh/pointhi/leaflet-color-markers/dist/leaflet-color-markers.js"></script> 
+   
+   <!-- Pour les tracés -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.2.0/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.css" />
+    <script src="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.3.1/dist/css/bootstrap.min.css" integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T" crossorigin="anonymous">
+
+</head>
+
+<body>
+   
+<!-- Pour calculer la durée en fonction d'une distance, vitesse, autonomie et temps de chargement de la voiture -->
+
+    <form class="item" method="POST" >
+    {% csrf_token %}
+        <label for="vitesse">Distance :</label>
+        <input type="number" name="DistanceKM" placeholder="km" required="required">
+        <input type="number" name="DistanceMetre" placeholder="m" required="required" >
+        <br>
+        <label for="vitesse">Vitesse :</label>
+        <input type="number" name="vitesse" placeholder="km/h" required="required">
+        <br>
+        <label for="autonomie">Autonomie :</label>
+        <input type="number" name="autonomie" placeholder="km" required="required" >
+        <br>
+        <label for="vitesse">Temps de Chargement :</label>
+        <input type="number" name="TempsDeChargementHeures" placeholder="heures" required="required" >
+        <input type="number" name="TempsDeChargementMinutes" placeholder="minutes" required="required">
+        <br>
+        <button type="submit" name="calculer">Calculer</button>
+    </form>
+    
+    <!-- Pour la sélection de la ville -->
+    
+    <h1>{{result}}</h1>
+    <form class="item" method="POST" >   
+    {% csrf_token %}
+    <div class="container-fluid">
+            {% for vehicule in Liste_vehicules %}
+            {% if data == 0 %}
+                <div class="row">
+            {% endif %}
+            <div class="col-sm-3 parent vehicule" align="left" data-autonomie="{{ vehicule.AutonomieMin }}" data-rechargement="{{ vehicule.time2 }}" data-rechargement2="{{ vehicule.time }}">
+                <div>Marque : {{ vehicule.marque}}</div>
+                <div>Modèle : {{ vehicule.modele}}</div>
+                <div>Version : {{ vehicule.VersionRechargement}}</div>
+                <div>Autonomie : {{ vehicule.AutonomieMin}} - {{ vehicule.AutonomieMax}} km</div>
+                <div>Temps de chargement normal: {{ vehicule.time}} min</div>
+                <div>Temps de chargement rapide: {{ vehicule.time2}} min</div>
+                <img src={{ vehicule.ImageDuVehicule}}></img>
+            </div>
+            {% if data < 3 %}
+                {% incrementer data as data %}
+             {% else %}
+                </div>
+                {% return_to_zero data as data%}
+            {% endif %}
+            {% endfor %}
+    </div>
+        </br>
+        <input type="hidden" name="Autonomie" id="Autonomie" value="">
+        <input type="hidden" name="TempsDeRechargement" id="Rechargement" value="">
+        <input type="hidden" name="TempsDeRechargement2" id="Rechargement2" value="">
+        <label for="VilleDepart">Ville de départ :</label>
+        <input type="text" class="autocomplete" name="VilleDepart" placeholder="Start typing a city..." required="required">
+        <ul class="suggestions"></ul>
+        <label for="VilleArrivee">Ville d'arrivée :</label>
+        <input type="text" class="autocomplete" name="VilleArrivee" required="required" placeholder="Start typing another city...">
+        <ul class="suggestions"></ul>    
+        <br>
+        <button type="submit" name="sauvegarder">Sauvegarder</button>
+    </form>
+    
+     <scrip>
+     <script>
+    document.addEventListener('DOMContentLoaded', function () {
+    var vehicules = document.querySelectorAll('.vehicule');
+    vehicules.forEach(function (vehicule) {
+        vehicule.addEventListener('click', function () {
+            // Mettre en évidence le div sélectionné
+            vehicules.forEach(v => v.classList.remove('selected'));
+            this.classList.add('selected');
+
+            // Mettre à jour la valeur du champ caché
+            var autonomie = this.getAttribute('data-autonomie');
+            document.getElementById('Autonomie').value = autonomie;
+            
+            var rechargement = this.getAttribute('data-rechargement');
+            if (rechargement == "None"){
+            rechargement = 0;
+            }
+            document.getElementById('Rechargement').value = rechargement;
+            
+            var rechargement2 = this.getAttribute('data-rechargement2');
+            document.getElementById('Rechargement2').value = rechargement2;
+        });
+    });
+});
+    </script>
+    
+        <p id="TempsTotal"></p>
+        
+    
+     <div id="map"></div>
+     <script src="{% static 'universal.js' %}"></script>
+     
+
+<script>
+  
+{% if markers %}
+     L.marker([{{ markers.0.0 }}, {{ markers.0.1 }}]).addTo(map)
+      .openPopup();
+      L.marker([{{ markers.1.0 }}, {{ markers.1.1 }}]).addTo(map)
+      .openPopup();
+{% endif %}
+
+{% for cordinate in cordinates %}
+    L.marker([{{ cordinate.0 }}, {{ cordinate.1 }}]).addTo(map);
+    document.getElementById('Affichage').innerText = 'Coordonnées: ' + {{cordinate}} + ' km';
+{% endfor %}
+  
+</script>
+  
+<script>
+ var redMarker = L.icon({
+    iconUrl: 'https://cdn.jsdelivr.net/gh/pointhi/leaflet-color-markers/img/marker-icon-2x-red.png',
+    shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+    iconSize: [25, 41],
+    iconAnchor: [12, 41],
+    popupAnchor: [1, -34],
+    shadowSize: [41, 41]
+});
+
+{% for location in locations %}
+    var marker = L.marker([{{ location.0 }}, {{ location.1 }}], {icon: redMarker}).addTo(map);
+    marker.bindPopup('{{ location.2 }}'); 
+{% endfor %}
+
+</script>
+  
+   <script>
+    // Fonction pour formater le nom de la ville pour l'affichage
+    function formatCityNameForDisplay(city) {
+        return city.split(' ')
+                   .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+                   .join(' ');
+    }
+
+    // Récupération des labels et suppression des doublons
+    const labels = Array.from(new Set({{ labels|tojson|safe }})); 
+
+    // Événement 'input' pour la gestion de l'autocomplétion
+    $(".autocomplete").on("input", function() {
+        let query = $(this).val();
+        let matchingCities = [];
+        
+        labels.forEach(city => {
+            if(city.toLowerCase().startsWith(query.toLowerCase())) {
+                matchingCities.push(city);
+            }
+        });
+
+        // Trier les villes correspondantes par ordre alphabétique
+        matchingCities.sort();
+
+        let suggestionsList = "";
+        matchingCities.forEach(city => {
+            let formattedCity = formatCityNameForDisplay(city);
+            suggestionsList += `<li class="list-group-item" data-city="${city}">${formattedCity}</li>`;
+        });
+
+        // Associer la liste des suggestions à l'input actuel
+        $(this).next(".suggestions").html(suggestionsList);
+    });
+    
+    // Événement 'click' pour chaque élément de la liste d'autocomplétion
+    $(".suggestions").on("click", "li", function() {
+        let selectedCity = $(this).attr('data-city');
+        
+        // Trouvez le champ d'entrée associé à cette liste de suggestions et mettez à jour sa valeur
+        $(this).parent().prev(".autocomplete").val(selectedCity);
+        
+        // Vider la liste une fois une ville sélectionnée
+        $(this).parent().html("");  
+    });
+
+</script>
+
+{% if markers %}
+<script>
+    // Fonction asynchrone pour récupérer un nouveau waypoint depuis l'API Open Charge Map
+    async function fetchNewWaypoint(lat, lng) {
+        const baseUrl = "https://api.openchargemap.io/v3/poi/";
+        const parameters = {
+            countrycode: "FR",
+            latitude: lat,
+            longitude: lng,
+            distance: 50,
+            output: "json",
+            maxresults: 1,
+            key: "{{OPENCHARGEMAP}}" // Remplacez par votre clé API
+        };
+
+        const url = new URL(baseUrl);
+        Object.keys(parameters).forEach(key => url.searchParams.append(key, parameters[key]));
+
+        try {
+            const response = await fetch(url);
+            const data = await response.json();
+            if (data.length > 0) {
+                return L.latLng(data[0].AddressInfo.Latitude, data[0].AddressInfo.Longitude);
+            }
+        } catch (error) {
+            console.error('Erreur lors de la récupération des données:', error);
+        }
+        return null;
+    }
+
+    // Initial waypoints
+    var initialWaypoints = [
+        L.latLng({{ markers.0.0 }}, {{ markers.0.1 }}),
+        L.latLng({{ markers.1.0 }}, {{ markers.1.1 }})
+    ];
+    
+    var NombreWayPoints = 0;
+
+    var routingControl = L.Routing.control({
+        waypoints: initialWaypoints
+    }).on('routesfound', async function(e) {
+        var route = e.routes[0];
+        var totalDistance = route.summary.totalDistance / 1000;
+        var tempsParcours = route.summary.totalTime;
+        
+        var tempsParcoursMinutes = tempsParcours / 60;
+        var tempsParcoursHeures = tempsParcoursMinutes / 60;
+        
+        console.log("Temps de parcours en minutes : " + tempsParcoursMinutes);
+        console.log("Temps de parcours en heures : " + tempsParcoursHeures);
+        
+        document.getElementById('distance-display').innerText = 'Distance totale sans rechargement: ' + totalDistance.toFixed(2) + ' km';
+
+        var waypoints = [initialWaypoints[0]]; // Start with the initial starting point
+        var distanceCovered = 0;
+        for (var i = 0; i < route.coordinates.length - 1; i++) {
+            
+            var currentCoord = route.coordinates[i];
+            var nextCoord = route.coordinates[i + 1];
+            var segmentDistance = L.latLng(currentCoord).distanceTo(L.latLng(nextCoord)) / 1000;
+            if ((distanceCovered + segmentDistance) >= (({{Autonomie}}) - {{Autonomie_5}})) {
+                NombreWayPoints++;
+                var fraction = (({{Autonomie}} - {{Autonomie_5}}) - distanceCovered) / segmentDistance;
+                var newLat = currentCoord.lat + fraction * (nextCoord.lat - currentCoord.lat);
+                var newLng = currentCoord.lng + fraction * (nextCoord.lng - currentCoord.lng);
+
+                var newWaypoint = await fetchNewWaypoint(newLat, newLng);
+                if (newWaypoint) {
+                    waypoints.push(newWaypoint);
+                }               
+                
+                distanceCovered = 0;
+            } else {
+                distanceCovered += segmentDistance;
+            }
+        }
+        waypoints.push(initialWaypoints[1]); // End with the initial end point
+
+        map.removeControl(routingControl);
+routingControl = L.Routing.control({
+    waypoints: waypoints,
+    routeWhileDragging: true
+}).on('routesfound', function(e) {
+    var route = e.routes[0]; 
+    var tempsParcoursminutes = route.summary.totalTime / 60; // Temps en minutes
+    var tempsParcours = tempsParcoursminutes / 60; // Temps en heures
+    
+    function minutesEnHeures(minutes) {
+    return minutes / 60;
+}
+
+    var RechargementVoiture = minutesEnHeures({{TempsDeRechargement}});
+     console.log({{TempsDeRechargement}})
+    console.log(RechargementVoiture*NombreWayPoints)
+    
+    function convertirEnHeuresEtMinutes(tempsDecimal, RechargementVoiture, Nombre) {
+    tempsDecimal = tempsDecimal + RechargementVoiture * Nombre;
+    
+    var heures = Math.floor(tempsDecimal);
+    var minutes = Math.round((tempsDecimal - heures) * 60);
+
+    // Correction si les minutes arrondies donnent 60
+    if (minutes === 60) {
+        heures += 1;
+        minutes = 0;
+    }
+
+    return heures + " heures et " + minutes + " minutes";
+}
+
+    // Afficher ou utiliser le temps total
+    console.log("Temps total de parcours avec rechargements : " + convertirEnHeuresEtMinutes(tempsParcours, RechargementVoiture, NombreWayPoints));
+    document.getElementById('TempsTotal').innerText = "Temps total de parcours avec rechargements : " + convertirEnHeuresEtMinutes(tempsParcours, RechargementVoiture, NombreWayPoints)
+}).addTo(map);
+    }).addTo(map);
+</script>
+{% endif %}
+
+        <div id="distance-display">Distance non disponible</div>
+
+
+</body>
+
+</html>
